@@ -67,7 +67,7 @@ struct BookOpeningAnimation: View {
                     )
                     .opacity(isOpen ? 0 : 1)
                 }
-                .frame(height: 400)
+                .frame(maxWidth: 350) // MATCH THE BOOK SIZE
                 
                 Spacer()
             }

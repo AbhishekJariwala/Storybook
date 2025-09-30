@@ -13,7 +13,7 @@ struct StorybookApp: App {
     
     var body: some Scene {
         WindowGroup {
-            MainTabView(viewModel: viewModel)
+            StorybookView(viewModel: viewModel)
         }
     }
 }

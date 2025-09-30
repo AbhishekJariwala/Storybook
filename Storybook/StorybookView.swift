@@ -10,14 +10,11 @@ import UIKit
 
 struct StorybookView: View {
     @ObservedObject var viewModel: StorybookViewModel
-    @State private var currentIndex = -1 // Start at -1 to show cover on launch
+    @State private var currentIndex = -1 // Start at -1 to show cover
     @State private var showBookAnimation = false
-    @State private var animationTrigger: AnimationTrigger = .appLaunch
-    
-    enum AnimationTrigger {
-        case appLaunch
-        case pageFlip
-    }
+    @State private var hasShownInitialAnimation = false
+    @State private var showLibrary = false
+    @State private var showAddStory = false
     
     var body: some View {
         ZStack {
@@ -27,17 +24,47 @@ struct StorybookView: View {
             
             // Main book view
             VStack(spacing: 16) {
-                // Header
-                VStack(spacing: 4) {
-                    Text(Date(), style: .date)
-                        .font(.system(size: 13, weight: .light))
-                        .foregroundColor(.textSecondary)
-                        .textCase(.uppercase)
-                        .tracking(1)
+                // Header with controls
+                HStack {
+                    Spacer()
                     
-                    Text("My Storybook")
-                        .font(.system(size: 20, weight: .light, design: .serif))
-                        .foregroundColor(.textPrimary)
+                    VStack(spacing: 4) {
+                        Button {
+                            showLibrary = true
+                        } label: {
+                            Text(Date(), style: .date)
+                                .font(.system(size: 13, weight: .light))
+                                .foregroundColor(.textSecondary)
+                                .textCase(.uppercase)
+                                .tracking(1)
+                        }
+                        
+                        Text("My Storybook")
+                            .font(.system(size: 20, weight: .light, design: .serif))
+                            .foregroundColor(.textPrimary)
+                    }
+                    
+                    Spacer()
+                    
+                    // Top right controls
+                    HStack(spacing: 16) {
+                        Button {
+                            showLibrary = true
+                        } label: {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 18))
+                                .foregroundColor(.textSecondary)
+                        }
+                        
+                        Button {
+                            showAddStory = true
+                        } label: {
+                            Image(systemName: "plus")
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundColor(.accentGold)
+                        }
+                    }
+                    .padding(.trailing, 20)
                 }
                 .padding(.top, 20)
                 
@@ -75,42 +102,58 @@ struct StorybookView: View {
                 } else {
                     PageCurlWithCoverViewController(
                         stories: viewModel.stories,
-                        currentIndex: $currentIndex,
-                        onAnimationTrigger: { trigger in
-                            animationTrigger = trigger
-                            showBookAnimation = true
-                        }
+                        currentIndex: $currentIndex
                     )
+                    .opacity(showBookAnimation ? 0 : 1)
                 }
             }
+            .opacity(showBookAnimation ? 0 : 1)
             
-            // Book opening animation overlay
+            // Book opening animation overlay (only on app launch)
             if showBookAnimation {
                 BookOpeningAnimation(
-                    story: currentIndex >= 0 && currentIndex < viewModel.stories.count
-                        ? viewModel.stories[currentIndex]
-                        : nil
+                    story: viewModel.stories.first
                 ) {
-                    showBookAnimation = false
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        showBookAnimation = false
+                    }
                 }
                 .transition(.opacity)
                 .zIndex(1)
             }
+            
+            // Library overlay
+            if showLibrary {
+                LibraryOverlay(
+                    viewModel: viewModel,
+                    isPresented: $showLibrary,
+                    onStorySelected: { index in
+                        // Jump to selected story in the book
+                        currentIndex = index
+                        showLibrary = false
+                    }
+                )
+                .transition(.move(edge: .bottom))
+                .zIndex(2)
+            }
+        }
+        .sheet(isPresented: $showAddStory) {
+            AddEditStoryView(viewModel: viewModel)
         }
         .onAppear {
-            // Show book animation on app launch
-            if !viewModel.stories.isEmpty {
+            // Show book animation ONLY on first app launch
+            if !viewModel.stories.isEmpty && !hasShownInitialAnimation {
+                hasShownInitialAnimation = true
                 showBookAnimation = true
             }
         }
     }
 }
 
-// New UIPageViewController that includes cover as page 0
+// UIPageViewController that includes cover as page 0
 struct PageCurlWithCoverViewController: UIViewControllerRepresentable {
     let stories: [Story]
     @Binding var currentIndex: Int
-    let onAnimationTrigger: (StorybookView.AnimationTrigger) -> Void
     
     func makeUIViewController(context: Context) -> UIPageViewController {
         let pageVC = UIPageViewController(
@@ -134,7 +177,11 @@ struct PageCurlWithCoverViewController: UIViewControllerRepresentable {
     
     func updateUIViewController(_ pageVC: UIPageViewController, context: Context) {
         context.coordinator.updateStories(stories)
-        context.coordinator.onAnimationTrigger = onAnimationTrigger
+        
+        // Handle programmatic page changes (from library selection)
+        if context.coordinator.parent.currentIndex != context.coordinator.lastKnownIndex {
+            context.coordinator.navigateToIndex(context.coordinator.parent.currentIndex, pageVC: pageVC)
+        }
     }
     
     func makeCoordinator() -> Coordinator {
@@ -144,24 +191,37 @@ struct PageCurlWithCoverViewController: UIViewControllerRepresentable {
     class Coordinator: NSObject, UIPageViewControllerDataSource, UIPageViewControllerDelegate {
         let parent: PageCurlWithCoverViewController
         private var currentStories: [Story]
-        var onAnimationTrigger: (StorybookView.AnimationTrigger) -> Void
-        private var previousIndex: Int = -1
+        var lastKnownIndex: Int = -1
         
         init(_ parent: PageCurlWithCoverViewController) {
             self.parent = parent
             self.currentStories = parent.stories
-            self.onAnimationTrigger = parent.onAnimationTrigger
+            self.lastKnownIndex = parent.currentIndex
         }
         
         func updateStories(_ stories: [Story]) {
             self.currentStories = stories
         }
         
+        func navigateToIndex(_ index: Int, pageVC: UIPageViewController) {
+            guard index >= -1 && index < currentStories.count else { return }
+            
+            let targetVC: UIViewController
+            if index == -1 {
+                targetVC = BookCoverHostingController()
+            } else {
+                targetVC = StoryHostingController(story: currentStories[index], index: index)
+            }
+            
+            let direction: UIPageViewController.NavigationDirection = index > lastKnownIndex ? .forward : .reverse
+            pageVC.setViewControllers([targetVC], direction: direction, animated: true)
+            lastKnownIndex = index
+        }
+        
         func pageViewController(
             _ pageViewController: UIPageViewController,
             viewControllerBefore viewController: UIViewController
         ) -> UIViewController? {
-            // Get current index
             let currentIndex: Int
             if viewController is BookCoverHostingController {
                 currentIndex = -1
@@ -171,26 +231,22 @@ struct PageCurlWithCoverViewController: UIViewControllerRepresentable {
                 return nil
             }
             
-            // Navigate backwards
             if currentIndex == 0 {
-                // Go back to cover
                 return BookCoverHostingController()
             } else if currentIndex > 0 {
-                // Go to previous story
                 return StoryHostingController(
                     story: currentStories[currentIndex - 1],
                     index: currentIndex - 1
                 )
             }
             
-            return nil // Can't go back from cover
+            return nil
         }
         
         func pageViewController(
             _ pageViewController: UIPageViewController,
             viewControllerAfter viewController: UIViewController
         ) -> UIViewController? {
-            // Get current index
             let currentIndex: Int
             if viewController is BookCoverHostingController {
                 currentIndex = -1
@@ -200,22 +256,19 @@ struct PageCurlWithCoverViewController: UIViewControllerRepresentable {
                 return nil
             }
             
-            // Navigate forwards
             if currentIndex == -1 && !currentStories.isEmpty {
-                // Go from cover to first story
                 return StoryHostingController(
                     story: currentStories[0],
                     index: 0
                 )
             } else if currentIndex >= 0 && currentIndex < currentStories.count - 1 {
-                // Go to next story
                 return StoryHostingController(
                     story: currentStories[currentIndex + 1],
                     index: currentIndex + 1
                 )
             }
             
-            return nil // No more stories
+            return nil
         }
         
         func pageViewController(
@@ -226,26 +279,14 @@ struct PageCurlWithCoverViewController: UIViewControllerRepresentable {
         ) {
             guard completed else { return }
             
-            // Determine current index
             if let visibleVC = pageViewController.viewControllers?.first {
-                let newIndex: Int
                 if visibleVC is BookCoverHostingController {
-                    newIndex = -1
+                    parent.currentIndex = -1
+                    lastKnownIndex = -1
                 } else if let storyVC = visibleVC as? StoryHostingController {
-                    newIndex = storyVC.index
-                } else {
-                    return
+                    parent.currentIndex = storyVC.index
+                    lastKnownIndex = storyVC.index
                 }
-                
-                // Check if we should trigger animation
-                // Trigger when: going from cover (index -1) to first story (index 0)
-                // OR going from first story (index 0) back to cover (index -1)
-                if (previousIndex == -1 && newIndex == 0) || (previousIndex == 0 && newIndex == -1) {
-                    onAnimationTrigger(.pageFlip)
-                }
-                
-                previousIndex = newIndex
-                parent.currentIndex = newIndex
             }
         }
     }

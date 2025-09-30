@@ -2,7 +2,7 @@
 //  BookCoverView.swift
 //  Storybook
 //
-//  Created by Abhishek Jariwala on 2025-09-30.
+//  Created by Abhishek Jariwala on 2025-09-29.
 //
 
 import SwiftUI
@@ -28,12 +28,12 @@ struct BookCoverView: View {
                 Spacer()
                 
                 Text(title)
-                    .font(.system(size: 28, weight: .light, design: .serif))
+                    .font(.system(size: 32, weight: .light, design: .serif))
                     .foregroundColor(.textPrimary)
                     .multilineTextAlignment(.center)
                 
                 Text(subtitle)
-                    .font(.system(size: 12, weight: .light))
+                    .font(.system(size: 14, weight: .light))
                     .foregroundColor(.textSecondary)
                     .tracking(2)
                 
@@ -41,13 +41,13 @@ struct BookCoverView: View {
                 
                 // Small moon icon at bottom (like Yume)
                 Image(systemName: "moonphase.first.quarter")
-                    .font(.system(size: 20))
+                    .font(.system(size: 24))
                     .foregroundColor(.accentGold)
-                    .padding(.bottom, 30)
+                    .padding(.bottom, 40)
             }
             .padding()
         }
-        .frame(width: 280, height: 400)
+        .frame(maxWidth: 350) // MATCH STORY PAGE WIDTH
         .shadow(color: .black.opacity(0.5), radius: 20, x: -10, y: 10)
     }
 }
@@ -55,6 +55,6 @@ struct BookCoverView: View {
 #Preview {
     ZStack {
         Color.darkBackground.ignoresSafeArea()
-        BookCoverView(title: "Storybook", subtitle: "written by Abhi")
+        BookCoverView(title: "My Storybook", subtitle: "by You")
     }
 }
