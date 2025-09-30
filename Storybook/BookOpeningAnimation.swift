@@ -2,13 +2,13 @@
 //  BookOpeningAnimation.swift
 //  Storybook
 //
-//  Created by Abhishek Jariwala on 2025-09-30.
+//  Created by Abhishek Jariwala on 2025-09-29.
 //
 
 import SwiftUI
 
 struct BookOpeningAnimation: View {
-    let story: Story
+    let story: Story?
     @State private var isOpen = false
     @State private var showContent = false
     let onAnimationComplete: () -> Void
@@ -37,14 +37,26 @@ struct BookOpeningAnimation: View {
                 // Book animation
                 ZStack {
                     // Pages (revealed when book opens)
-                    BookPagesView(story: story)
+                    if let story = story {
+                        BookPagesView(story: story)
+                            .opacity(showContent ? 1 : 0)
+                            .scaleEffect(showContent ? 1 : 0.95)
+                    } else {
+                        // Show cover contents if no story (opening to cover)
+                        BookPagesView(story: Story(
+                            title: "My Storybook",
+                            text: "Your stories will appear here.\n\nTap the + button to add your first story.",
+                            date: Date(),
+                            imageData: []
+                        ))
                         .opacity(showContent ? 1 : 0)
                         .scaleEffect(showContent ? 1 : 0.95)
+                    }
                     
                     // Front cover (animates open)
                     BookCoverView(
-                        title: story.title,
-                        subtitle: "by \(getCurrentUserName())"
+                        title: story?.title ?? "My Storybook",
+                        subtitle: "by You"
                     )
                     .rotation3DEffect(
                         .degrees(isOpen ? -180 : 0),
@@ -53,7 +65,7 @@ struct BookOpeningAnimation: View {
                         anchorZ: 0,
                         perspective: 0.3
                     )
-                    .opacity(isOpen ? 0 : 1) // Fade out as it rotates away
+                    .opacity(isOpen ? 0 : 1)
                 }
                 .frame(height: 400)
                 
@@ -78,11 +90,6 @@ struct BookOpeningAnimation: View {
                 }
             }
         }
-    }
-    
-    private func getCurrentUserName() -> String {
-        // You can customize this or make it dynamic
-        return "You"
     }
 }
 
