@@ -9,26 +9,56 @@ import SwiftUI
 import UIKit
 
 struct StorybookView: View {
-    let stories: [Story]
+    @ObservedObject var viewModel: StorybookViewModel
     @State private var currentIndex = 0
+    @State private var showingAddStory = false
     
     var body: some View {
         VStack {
             // Page indicator
-            Text("Book Title")
-                .font(.caption)
+            Text("My Storybook")
+                .font(.headline)
                 .foregroundColor(.primary)
-            if !stories.isEmpty {
-                Text("Story \(currentIndex + 1) of \(stories.count)")
+            
+            if !viewModel.stories.isEmpty {
+                Text("Story \(currentIndex + 1) of \(viewModel.stories.count)")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
             
             // Page curl storybook
-            PageCurlViewController(stories: stories, currentIndex: $currentIndex)
-            Button("+") {
-                
+            if viewModel.stories.isEmpty {
+                // Empty state
+                VStack(spacing: 20) {
+                    Image(systemName: "book.closed")
+                        .font(.system(size: 60))
+                        .foregroundColor(.secondary)
+                    
+                    Text("No stories yet")
+                        .font(.title2)
+                        .foregroundColor(.secondary)
+                    
+                    Text("Tap + to write your first story")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                PageCurlViewController(stories: viewModel.stories, currentIndex: $currentIndex)
             }
+            
+            // Add button
+            Button {
+                showingAddStory = true
+            } label: {
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 44))
+                    .foregroundColor(.blue)
+            }
+            .padding()
+        }
+        .sheet(isPresented: $showingAddStory) {
+            AddEditStoryView(viewModel: viewModel)
         }
     }
 }
@@ -57,7 +87,8 @@ struct PageCurlViewController: UIViewControllerRepresentable {
     }
     
     func updateUIViewController(_ pageVC: UIPageViewController, context: Context) {
-        // Update if needed
+        // Update if needed when stories change
+        context.coordinator.updateStories(stories)
     }
     
     func makeCoordinator() -> Coordinator {
@@ -66,9 +97,15 @@ struct PageCurlViewController: UIViewControllerRepresentable {
     
     class Coordinator: NSObject, UIPageViewControllerDataSource, UIPageViewControllerDelegate {
         let parent: PageCurlViewController
+        private var currentStories: [Story]
         
         init(_ parent: PageCurlViewController) {
             self.parent = parent
+            self.currentStories = parent.stories
+        }
+        
+        func updateStories(_ stories: [Story]) {
+            self.currentStories = stories
         }
         
         func pageViewController(
@@ -82,7 +119,7 @@ struct PageCurlViewController: UIViewControllerRepresentable {
             
             let previousIndex = storyVC.index - 1
             return StoryHostingController(
-                story: parent.stories[previousIndex],
+                story: currentStories[previousIndex],
                 index: previousIndex
             )
         }
@@ -92,13 +129,13 @@ struct PageCurlViewController: UIViewControllerRepresentable {
             viewControllerAfter viewController: UIViewController
         ) -> UIViewController? {
             guard let storyVC = viewController as? StoryHostingController,
-                  storyVC.index < parent.stories.count - 1 else {
+                  storyVC.index < currentStories.count - 1 else {
                 return nil
             }
             
             let nextIndex = storyVC.index + 1
             return StoryHostingController(
-                story: parent.stories[nextIndex],
+                story: currentStories[nextIndex],
                 index: nextIndex
             )
         }
@@ -132,13 +169,5 @@ class StoryHostingController: UIHostingController<StoryView> {
 }
 
 #Preview {
-    StorybookView(stories: Story.examples)
-}
-
-#Preview("Single Story") {
-    StorybookView(stories: [Story.example])
-}
-
-#Preview("Empty") {
-    StorybookView(stories: [])
+    StorybookView(viewModel: StorybookViewModel())
 }

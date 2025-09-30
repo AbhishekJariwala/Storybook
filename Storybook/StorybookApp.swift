@@ -9,9 +9,11 @@ import SwiftUI
 
 @main
 struct StorybookApp: App {
+    @StateObject private var viewModel = StorybookViewModel()
+    
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            StorybookView(viewModel: viewModel)
         }
     }
 }
