@@ -47,15 +47,6 @@ struct StorybookView: View {
                 PageCurlViewController(stories: viewModel.stories, currentIndex: $currentIndex)
             }
             
-            // Add button
-            Button {
-                showingAddStory = true
-            } label: {
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 44))
-                    .foregroundColor(.blue)
-            }
-            .padding()
         }
         .sheet(isPresented: $showingAddStory) {
             AddEditStoryView(viewModel: viewModel)
