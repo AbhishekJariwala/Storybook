@@ -288,8 +288,9 @@ struct StorybookView: View {
                 // Header with controls
                 VStack(spacing: 8) {
                     // Date
+                    HStack{
                         Button {
-                        animateToggleLibrary(.search)
+                            animateToggleLibrary(.search)
                         } label: {
                             Text(Date(), style: .date)
                                 .font(.system(size: 13, weight: .light))
@@ -297,6 +298,22 @@ struct StorybookView: View {
                                 .textCase(.uppercase)
                                 .tracking(1)
                         }
+                        Spacer()
+                        Group {
+                            Image(systemName: "flame.fill")
+                                .font(.system(size: 12))
+                                .foregroundColor(.accentGold)
+                            
+                            Text("\(viewModel.currentStreak)")
+                                .font(.system(size: 13, weight: .light))
+                                .foregroundColor(.accentGold)
+                            
+                            Text("day\(viewModel.currentStreak == 1 ? "" : "s")")
+                                .font(.system(size: 13, weight: .light))
+                                .foregroundColor(.textSecondary)
+                        }
+                    }
+                    .padding()
                     
                     // Title and controls on same line
                     HStack(alignment: .center) {

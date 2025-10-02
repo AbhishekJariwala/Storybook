@@ -153,6 +153,19 @@ struct LibraryView: View {
             }
             .navigationTitle("Library")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "flame.fill")
+                            .font(.system(size: 12))
+                            .foregroundColor(.orange)
+                        
+                        Text("\(viewModel.currentStreak)")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.orange)
+                    }
+                }
+            }
             .sheet(item: $selectedStory) { story in
                 StoryDetailView(viewModel: viewModel, story: story)
             }
