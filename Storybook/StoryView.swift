@@ -56,20 +56,28 @@ struct StoryView: View {
 // New themed version for the book view
 struct ThemedStoryView: View {
     let story: Story
+    let viewModel: StorybookViewModel?
+    @State private var showingEditView = false
+    
+    init(story: Story, viewModel: StorybookViewModel? = nil) {
+        self.story = story
+        self.viewModel = viewModel
+    }
     
     var body: some View {
-        // Book page look
-        RoundedRectangle(cornerRadius: 8)
-            .fill(Color.pageWhite)
-            .frame(maxWidth: 350)
-            .shadow(color: .black.opacity(0.3), radius: 15, x: 0, y: 10)
-            .overlay(
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        // Title
-                        Text(story.title)
-                            .font(.system(size: 28, weight: .regular, design: .serif))
-                            .foregroundColor(.black)
+        ZStack {
+            // Book page look
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.pageWhite)
+                .frame(maxWidth: 350)
+                .shadow(color: .black.opacity(0.3), radius: 15, x: 0, y: 10)
+                .overlay(
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 20) {
+                            // Title
+                            Text(story.title)
+                                .font(.system(size: 28, weight: .regular, design: .serif))
+                                .foregroundColor(.black)
                         
                         // Date
                         Text(story.date, style: .date)
@@ -105,20 +113,48 @@ struct ThemedStoryView: View {
                             .foregroundColor(.black.opacity(0.85))
                             .lineSpacing(10)
                         
-                        Spacer(minLength: 40)
+                            Spacer(minLength: 40)
+                        }
+                        .padding(32)
                     }
-                    .padding(32)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .padding(.horizontal, 20)
+            
+            // Edit button overlay (only show if viewModel is provided)
+            if let viewModel = viewModel {
+                VStack {
+                    HStack {
+                        Spacer()
+                        Button {
+                            showingEditView = true
+                        } label: {
+                            Image(systemName: "pencil")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.accentGold)
+                                .padding(8)
+                                .background(Color.darkBackground.opacity(0.8))
+                                .clipShape(Circle())
+                        }
+                        .padding(.trailing, 8)
+                        .padding(.top, 8)
+                    }
+                    Spacer()
                 }
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .padding(.horizontal, 20)
+            }
+        }
+        .sheet(isPresented: $showingEditView) {
+            if let viewModel = viewModel {
+                AddEditStoryView(viewModel: viewModel, storyToEdit: story)
+            }
+        }
     }
 }
 
 #Preview {
     ZStack {
         Color.darkBackground.ignoresSafeArea()
-        ThemedStoryView(story: Story.example)
+        ThemedStoryView(story: Story.example, viewModel: StorybookViewModel())
     }
 }
 

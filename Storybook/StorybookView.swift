@@ -319,7 +319,7 @@ struct StorybookView: View {
                     HStack(alignment: .center) {
                         Spacer()
                         
-                        Text("My Storybook")
+                        Text(UserPreferencesManager.shared.bookTitle)
                             .font(.system(size: 20, weight: .light, design: .serif))
                             .foregroundColor(.textPrimary)
                     
@@ -512,7 +512,7 @@ struct PageCurlWithCoverViewController: UIViewControllerRepresentable {
                     }
                 )
             } else {
-                targetVC = StoryHostingController(story: currentStories[index], index: index)
+                targetVC = StoryHostingController(story: currentStories[index], index: index, viewModel: viewModel)
             }
             
             // Improve direction calculation to prevent awkward animations
@@ -555,13 +555,15 @@ struct PageCurlWithCoverViewController: UIViewControllerRepresentable {
             } else if currentIndex > 0 && currentIndex < currentStories.count {
                 return StoryHostingController(
                     story: currentStories[currentIndex - 1],
-                    index: currentIndex - 1
+                    index: currentIndex - 1,
+                    viewModel: viewModel
                 )
             } else if currentIndex == currentStories.count && !currentStories.isEmpty {
                 // From blank page, go back to last story
                 return StoryHostingController(
                     story: currentStories[currentStories.count - 1],
-                    index: currentStories.count - 1
+                    index: currentStories.count - 1,
+                    viewModel: viewModel
                 )
             }
             
@@ -588,12 +590,14 @@ struct PageCurlWithCoverViewController: UIViewControllerRepresentable {
             if currentIndex == -1 && !currentStories.isEmpty {
                 return StoryHostingController(
                     story: currentStories[0],
-                    index: 0
+                    index: 0,
+                    viewModel: viewModel
                 )
             } else if currentIndex >= 0 && currentIndex < currentStories.count - 1 {
                 return StoryHostingController(
                     story: currentStories[currentIndex + 1],
-                    index: currentIndex + 1
+                    index: currentIndex + 1,
+                    viewModel: viewModel
                 )
             } else if currentIndex == currentStories.count - 1 {
                 // From last story, go to blank writing page
@@ -662,7 +666,7 @@ struct BookCoverPageView: View {
                 .ignoresSafeArea()
             
             BookCoverView(
-                title: "My Storybook",
+                title: UserPreferencesManager.shared.bookTitle,
                 subtitle: "by You"
             )
         }
@@ -673,9 +677,9 @@ struct BookCoverPageView: View {
 class StoryHostingController: UIHostingController<ThemedStoryView> {
     let index: Int
     
-    init(story: Story, index: Int) {
+    init(story: Story, index: Int, viewModel: StorybookViewModel) {
         self.index = index
-        super.init(rootView: ThemedStoryView(story: story))
+        super.init(rootView: ThemedStoryView(story: story, viewModel: viewModel))
         view.backgroundColor = UIColor(Color.darkBackground)
     }
     

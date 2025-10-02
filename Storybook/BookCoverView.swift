@@ -11,17 +11,13 @@ struct BookCoverView: View {
     let title: String
     let subtitle: String
     
+    private let userPrefs = UserPreferencesManager.shared
+    
     var body: some View {
         ZStack {
-            // Cover background with gradient
+            // Cover background with user's custom gradient
             RoundedRectangle(cornerRadius: 8)
-                .fill(
-                    LinearGradient(
-                        colors: [Color.bookCover, Color.bookSpine],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+                .fill(userPrefs.currentCoverGradient)
             
             // Cover content
             VStack(spacing: 8) {
