@@ -11,26 +11,38 @@ struct CalendarView: View {
     @ObservedObject var viewModel: StorybookViewModel
     @Binding var selectedDate: Date?
     @State private var displayedMonth = Date()
+    @State private var showingStoriesForDate = false
+    @State private var storiesForSelectedDate: [Story] = []
+    
+    let onStorySelected: ((Int) -> Void)?
+    
+    // Initialize with optional callback
+    init(viewModel: StorybookViewModel, selectedDate: Binding<Date?>, onStorySelected: ((Int) -> Void)? = nil) {
+        self.viewModel = viewModel
+        self._selectedDate = selectedDate
+        self.onStorySelected = onStorySelected
+    }
     
     private let calendar = Calendar.current
-    private let daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    private let daysOfWeek = ["S", "M", "T", "W", "T", "F", "S"]
     
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 12) {
             // Month selector
             HStack {
                 Button {
                     changeMonth(by: -1)
                 } label: {
                     Image(systemName: "chevron.left")
-                        .font(.title2)
+                        .font(.system(size: 16, weight: .light))
+                        .foregroundColor(.textSecondary)
                 }
                 
                 Spacer()
                 
                 Text(displayedMonth, format: .dateTime.month(.wide).year())
-                    .font(.title2)
-                    .fontWeight(.semibold)
+                    .font(.system(size: 16, weight: .light, design: .serif))
+                    .foregroundColor(.textPrimary)
                 
                 Spacer()
                 
@@ -38,7 +50,8 @@ struct CalendarView: View {
                     changeMonth(by: 1)
                 } label: {
                     Image(systemName: "chevron.right")
-                        .font(.title2)
+                        .font(.system(size: 16, weight: .light))
+                        .foregroundColor(.textSecondary)
                 }
             }
             .padding(.horizontal)
@@ -47,9 +60,8 @@ struct CalendarView: View {
             HStack(spacing: 0) {
                 ForEach(daysOfWeek, id: \.self) { day in
                     Text(day)
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.secondary)
+                        .font(.system(size: 10, weight: .light))
+                        .foregroundColor(.textSecondary)
                         .frame(maxWidth: .infinity)
                 }
             }
@@ -57,7 +69,7 @@ struct CalendarView: View {
             
             // Calendar grid
             let days = generateDaysInMonth()
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 10) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 8) {
                 ForEach(days, id: \.self) { date in
                     if let date = date {
                         DayCell(
@@ -78,9 +90,73 @@ struct CalendarView: View {
             }
             .padding(.horizontal)
             
-            Spacer()
+            // Story selection for selected date
+            if selectedDate != nil && hasStories(on: selectedDate!) {
+                dateStoriesView
+            }
         }
         .padding(.top)
+    }
+    
+    // MARK: - Date Stories View
+    private var dateStoriesView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Stories for \(selectedDate!, style: .date)")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.textSecondary)
+                .textCase(.uppercase)
+                .tracking(1)
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(viewModel.stories(for: selectedDate!)) { story in
+                        if let index = viewModel.stories.firstIndex(where: { $0.id == story.id }) {
+                            Button {
+                                onStorySelected?(index)
+                                selectedDate = nil
+                            } label: {
+                                HStack(spacing: 8) {
+                                    // Story thumbnail
+                                    ZStack {
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .fill(Color.bookCover)
+                                            .frame(width: 32, height: 44)
+                                        
+                                        if let firstImageData = story.imageData.first,
+                                           let uiImage = UIImage(data: firstImageData) {
+                                            Image(uiImage: uiImage)
+                                                .resizable()
+                                                .scaledToFill()
+                                                .frame(width: 32, height: 44)
+                                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                                        } else {
+                                            Image(systemName: "book.pages")
+                                                .font(.system(size: 12, weight: .light))
+                                                .foregroundColor(.textSecondary)
+                                        }
+                                    }
+                                    
+                                    // Story title
+                                    Text(story.title)
+                                        .font(.system(size: 13, weight: .light, design: .serif))
+                                        .foregroundColor(.textPrimary)
+                                        .lineLimit(1)
+                                }
+                                .padding(.vertical, 6)
+                                .padding(.horizontal, 10)
+                                .background(Color.bookCover)
+                                .cornerRadius(8)
+                                .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .padding(.horizontal, 4)
+            }
+        }
+        .padding(.horizontal)
+        .padding(.top, 8)
     }
     
     // MARK: - Helper Methods
@@ -152,28 +228,49 @@ struct DayCell: View {
     let isSelected: Bool
     
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 2) {
             Text("\(Calendar.current.component(.day, from: date))")
-                .font(.body)
-                .fontWeight(isToday ? .bold : .regular)
-                .foregroundColor(isCurrentMonth ? .primary : .secondary)
+                .font(.system(size: 14, weight: .light))
+                .foregroundColor(textColor)
             
             if hasStories {
                 Circle()
-                    .fill(Color.blue)
-                    .frame(width: 6, height: 6)
+                    .fill(Color.accentGold)
+                    .frame(width: 4, height: 4)
             } else {
                 Circle()
                     .fill(Color.clear)
-                    .frame(width: 6, height: 6)
+                    .frame(width: 4, height: 4)
             }
         }
-        .frame(height: 50)
+        .frame(height: 36)
         .frame(maxWidth: .infinity)
         .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(isSelected ? Color.blue.opacity(0.3) : isToday ? Color.blue.opacity(0.1) : Color.clear)
+            RoundedRectangle(cornerRadius: 6)
+                .fill(backgroundColor)
         )
+    }
+    
+    private var textColor: Color {
+        if isSelected {
+            return .accentGold
+        } else if isToday {
+            return .textPrimary
+        } else if isCurrentMonth {
+            return .textPrimary
+        } else {
+            return .textSecondary.opacity(0.5)
+        }
+    }
+    
+    private var backgroundColor: Color {
+        if isSelected {
+            return .accentGold.opacity(0.15)
+        } else if isToday {
+            return .accentGold.opacity(0.08)
+        } else {
+            return .clear
+        }
     }
 }
 

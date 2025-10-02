@@ -31,17 +31,17 @@ struct StorybookView: View {
             Color.darkBackground
                 .ignoresSafeArea()
             
-            // Main layout with split view
-            VStack(spacing: 0) {
-                // Top interface area (50% when active)
+            // Main layout with slide-down animation
+            ZStack(alignment: .top) {
+                // Book slides down from top to bottom
+                bottomBookArea
+                    .offset(y: libraryMode == .hidden ? 0 : UIScreen.main.bounds.height * 0.5)
+                
+                // Interface slides in from top
                 if libraryMode != .hidden {
                     topInterfaceArea
-                } else {
-                    Spacer() // Hidden when no interface
+                        .offset(y: libraryMode == .hidden ? -UIScreen.main.bounds.height * 0.5 : 0)
                 }
-                
-                // Bottom book area (100% → 50% when interface active)
-                bottomBookArea
             }
         }
         .sheet(isPresented: $showAddStory) {
@@ -62,7 +62,7 @@ struct StorybookView: View {
                 Spacer()
             }
         }
-        .frame(maxHeight: .infinity)
+        .frame(height: UIScreen.main.bounds.height * 0.5)
         .background(Color.darkBackground)
         .onTapGesture {
             dismissLibraryInterface()
@@ -167,7 +167,14 @@ struct StorybookView: View {
         VStack {
             CalendarView(
                 viewModel: viewModel,
-                selectedDate: $librarySelectedDate
+                selectedDate: $librarySelectedDate,
+                onStorySelected: { index in
+                    // Navigate to story and dismiss interface
+                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                        currentIndex = index
+                        dismissLibraryInterface()
+                    }
+                }
             )
             .background(Color.bookCover)
             .cornerRadius(8)
@@ -320,8 +327,6 @@ struct StorybookView: View {
                 // Page curl storybook
                 bookContentView
             }
-            .scaleEffect(libraryMode == .hidden ? 1.0 : 0.92)
-            .clipped()
             .onTapGesture {
                 if libraryMode != .hidden {
                     dismissLibraryInterface()
