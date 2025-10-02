@@ -11,8 +11,19 @@ import UIKit
 struct StorybookView: View {
     @ObservedObject var viewModel: StorybookViewModel
     @State private var currentIndex = -1 // Start at -1 to show cover
-    @State private var showLibrary = false
     @State private var showAddStory = false
+    
+    // Library interface state
+    @State private var libraryMode: LibraryMode = .hidden
+    @State private var librarySearchText = ""
+    @State private var libraryShowingCalendar = false
+    @State private var librarySelectedDate: Date?
+    
+    enum LibraryMode {
+        case hidden
+        case search
+        case calendar
+    }
     
     var body: some View {
         ZStack {
@@ -20,20 +31,245 @@ struct StorybookView: View {
             Color.darkBackground
                 .ignoresSafeArea()
             
-            // Main book view
+            // Main layout with split view
+            VStack(spacing: 0) {
+                // Top interface area (50% when active)
+                if libraryMode != .hidden {
+                    topInterfaceArea
+                } else {
+                    Spacer() // Hidden when no interface
+                }
+                
+                // Bottom book area (100% → 50% when interface active)
+                bottomBookArea
+            }
+        }
+        .sheet(isPresented: $showAddStory) {
+            AddEditStoryView(viewModel: viewModel)
+        }
+    }
+    
+    // MARK: - Top Interface Area
+    private var topInterfaceArea: some View {
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                // Interface header
+                topInterfaceHeader
+                
+                // Interface content
+                topInterfaceContent
+                
+                Spacer()
+            }
+        }
+        .frame(maxHeight: .infinity)
+        .background(Color.darkBackground)
+        .onTapGesture {
+            dismissLibraryInterface()
+        }
+    }
+    
+    // MARK: - Top Interface Header
+    private var topInterfaceHeader: some View {
+        HStack {
+            // Close button
+            Button {
+                dismissLibraryInterface()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 16, weight: .light))
+                    .foregroundColor(.textSecondary)
+            }
+            
+            Spacer()
+            
+            // Mode toggle
+            HStack(spacing: 20) {
+                Button {
+                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                        libraryMode = .search
+                        librarySearchText = ""
+                        librarySelectedDate = nil
+                    }
+                } label: {
+                    Text("Search")
+                        .font(.system(size: 16, weight: libraryMode == .search ? .medium : .light))
+                        .foregroundColor(libraryMode == .search ? .textPrimary : .textSecondary)
+                }
+                
+                Button {
+                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                        libraryMode = .calendar
+                        librarySearchText = ""
+                        librarySelectedDate = nil
+                    }
+                } label: {
+                    Text("Calendar")
+                        .font(.system(size: 16, weight: libraryMode == .calendar ? .medium : .light))
+                        .foregroundColor(libraryMode == .calendar ? .textPrimary : .textSecondary)
+                }
+            }
+            
+            Spacer()
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 40)
+        .padding(.bottom, 20)
+    }
+    
+    // MARK: - Top Interface Content
+    private var topInterfaceContent: some View {
+        Group {
+            if libraryMode == .search {
+                searchInterface
+            } else if libraryMode == .calendar {
+                calendarInterface
+            }
+        }
+    }
+    
+    // MARK: - Search Interface
+    private var searchInterface: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            // Search field
+            HStack {
+                TextField("Search stories...", text: $librarySearchText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 18, weight: .light))
+                    .foregroundColor(.textPrimary)
+                
+                if !librarySearchText.isEmpty {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            librarySearchText = ""
+                        }
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .light))
+                            .foregroundColor(.textSecondary)
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color.bookCover)
+            .cornerRadius(8)
+            .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+            .padding(.horizontal, 24)
+            
+            // Search results
+            searchResultsView
+        }
+    }
+    
+    // MARK: - Calendar Interface
+    private var calendarInterface: some View {
+        VStack {
+            CalendarView(
+                viewModel: viewModel,
+                selectedDate: $librarySelectedDate
+            )
+            .background(Color.bookCover)
+            .cornerRadius(8)
+            .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+            .padding(.horizontal, 24)
+            
+            Spacer()
+        }
+    }
+    
+    // MARK: - Search Results
+    private var searchResultsView: some View {
+        let filteredStories = viewModel.stories.filter { story in
+            story.title.localizedCaseInsensitiveContains(librarySearchText) ||
+            story.text.localizedCaseInsensitiveContains(librarySearchText)
+        }
+        
+        return ScrollView {
+            LazyVStack(spacing: 12) {
+                ForEach(filteredStories) { story in
+                    if let index = viewModel.stories.firstIndex(where: { $0.id == story.id }) {
+                        storyResultCard(story: story, index: index)
+                    }
+                }
+            }
+            .padding(.horizontal, 24)
+        }
+        .frame(maxHeight: .infinity)
+    }
+    
+    // MARK: - Story Result Card
+    private func storyResultCard(story: Story, index: Int) -> some View {
+        Button {
+            // Navigate to story and dismiss interface
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                currentIndex = index
+                dismissLibraryInterface()
+            }
+        } label: {
+            HStack(spacing: 16) {
+                // Story thumbnail
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.bookCover)
+                        .frame(width: 50, height: 70)
+                    
+                    if let firstImageData = story.imageData.first,
+                       let uiImage = UIImage(data: firstImageData) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 50, height: 70)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    } else {
+                        Image(systemName: "book.pages")
+                            .font(.system(size: 16, weight: .light))
+                            .foregroundColor(.textSecondary)
+                    }
+                }
+                
+                // Story details
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(story.title)
+                        .font(.system(size: 16, weight: .light, design: .serif))
+                        .foregroundColor(.textPrimary)
+                        .lineLimit(1)
+                    
+                    Text(story.text)
+                        .font(.system(size: 14, weight: .light))
+                        .foregroundColor(.textSecondary)
+                        .lineLimit(2)
+                    
+                    Text(story.date, style: .date)
+                        .font(.system(size: 11, weight: .light))
+                        .foregroundColor(.textSecondary)
+                        .textCase(.uppercase)
+                        .tracking(0.5)
+                }
+                
+                Spacer()
+            }
+            .padding(.vertical, 8)
+        }
+        .buttonStyle(.plain)
+    }
+    
+    // MARK: - Bottom Book Area
+    private var bottomBookArea: some View {
+        GeometryReader { geometry in
             VStack(spacing: 16) {
                 // Header with controls
                 VStack(spacing: 8) {
                     // Date
-                    Button {
-                        showLibrary = true
-                    } label: {
-                        Text(Date(), style: .date)
-                            .font(.system(size: 13, weight: .light))
-                            .foregroundColor(.textSecondary)
-                            .textCase(.uppercase)
-                            .tracking(1)
-                    }
+                        Button {
+                        animateToggleLibrary(.search)
+                        } label: {
+                            Text(Date(), style: .date)
+                                .font(.system(size: 13, weight: .light))
+                                .foregroundColor(.textSecondary)
+                                .textCase(.uppercase)
+                                .tracking(1)
+                        }
                     
                     // Title and controls on same line
                     HStack(alignment: .center) {
@@ -42,31 +278,32 @@ struct StorybookView: View {
                         Text("My Storybook")
                             .font(.system(size: 20, weight: .light, design: .serif))
                             .foregroundColor(.textPrimary)
-                        
-                        Spacer()
-                        
-                        // Top right controls
-                        HStack(spacing: 16) {
-                            Button {
-                                showLibrary = true
-                            } label: {
-                                Image(systemName: "magnifyingglass")
-                                    .font(.system(size: 18))
-                                    .foregroundColor(.textSecondary)
-                            }
-                            
-                            Button {
-                                showAddStory = true
-                            } label: {
-                                Image(systemName: "plus")
-                                    .font(.system(size: 18, weight: .medium))
-                                    .foregroundColor(.accentGold)
-                            }
+                    
+                    Spacer()
+                    
+                    // Top right controls
+                    HStack(spacing: 16) {
+                        Button {
+                                animateToggleLibrary(.search)
+                        } label: {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 18))
+                                .foregroundColor(.textSecondary)
                         }
-                        .padding(.trailing, 20)
+                        
+                        Button {
+                            showAddStory = true
+                        } label: {
+                            Image(systemName: "plus")
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundColor(.accentGold)
+                        }
                     }
+                    .padding(.trailing, 20)
                 }
-                .padding(.top, 20)
+                }
+                .padding(.top, libraryMode == .hidden ? 20 : 10)
+                .padding(.bottom, libraryMode == .hidden ? 32 : 16)
                 
                 if !viewModel.stories.isEmpty && currentIndex >= 0 {
                     Text("Story \(currentIndex + 1) of \(viewModel.stories.count)")
@@ -81,6 +318,21 @@ struct StorybookView: View {
                 }
                 
                 // Page curl storybook
+                bookContentView
+            }
+            .scaleEffect(libraryMode == .hidden ? 1.0 : 0.92)
+            .clipped()
+            .onTapGesture {
+                if libraryMode != .hidden {
+                    dismissLibraryInterface()
+                }
+            }
+        }
+    }
+    
+    // MARK: - Book Content View
+    private var bookContentView: some View {
+        Group {
                 if viewModel.stories.isEmpty {
                     // Empty state
                     VStack(spacing: 24) {
@@ -104,26 +356,24 @@ struct StorybookView: View {
                         stories: viewModel.stories,
                         currentIndex: $currentIndex
                     )
-                }
-            }
-            
-            // Library overlay
-            if showLibrary {
-                LibraryOverlay(
-                    viewModel: viewModel,
-                    isPresented: $showLibrary,
-                    onStorySelected: { index in
-                        // Jump to selected story in the book
-                        currentIndex = index
-                        showLibrary = false
-                    }
-                )
-                .transition(.move(edge: .bottom))
-                .zIndex(2)
             }
         }
-        .sheet(isPresented: $showAddStory) {
-            AddEditStoryView(viewModel: viewModel)
+    }
+    
+    // MARK: - Animation Functions
+    private func animateToggleLibrary(_ mode: LibraryMode) {
+        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+            if libraryMode == mode {
+                libraryMode = .hidden
+            } else {
+                libraryMode = mode
+            }
+        }
+    }
+    
+    private func dismissLibraryInterface() {
+        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+            libraryMode = .hidden
         }
     }
 }

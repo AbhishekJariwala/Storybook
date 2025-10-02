@@ -5,14 +5,6 @@
 //  Created by Abhishek Jariwala on 2025-09-30.
 //
 
-
-//
-//  LibraryOverlay.swift
-//  Storybook
-//
-//  Created by Abhishek Jariwala on 2025-09-29.
-//
-
 import SwiftUI
 
 struct LibraryOverlay: View {
@@ -85,27 +77,33 @@ struct LibraryOverlay: View {
                         .padding(.top, 12)
                         .padding(.bottom, 20)
                     
-                    // Toggle between search and calendar
-                    Button {
-                        showingCalendar.toggle()
-                        if showingCalendar {
-                            searchText = ""
-                        } else {
-                            selectedDate = nil
+                    // Minimal toggle buttons
+                    HStack(spacing: 12) {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                showingCalendar = false
+                                searchText = ""
+                                selectedDate = nil
+                            }
+                        } label: {
+                            Text("Search")
+                                .font(.system(size: 14, weight: showingCalendar ? .light : .medium))
+                                .foregroundColor(showingCalendar ? .textSecondary : .textPrimary)
                         }
-                    } label: {
-                        HStack {
-                            Image(systemName: showingCalendar ? "magnifyingglass" : "calendar")
-                            Text(showingCalendar ? "Show Search" : "Show Calendar")
+                        
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                showingCalendar = true
+                                searchText = ""
+                                selectedDate = nil
+                            }
+                        } label: {
+                            Text("Calendar")
+                                .font(.system(size: 14, weight: showingCalendar ? .medium : .light))
+                                .foregroundColor(showingCalendar ? .textPrimary : .textSecondary)
                         }
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.accentGold)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(Color.accentGold.opacity(0.15))
-                        .cornerRadius(8)
                     }
-                    .padding(.bottom, 16)
+                    .padding(.bottom, 24)
                     
                     if showingCalendar {
                         // Calendar View
@@ -113,81 +111,96 @@ struct LibraryOverlay: View {
                             viewModel: viewModel,
                             selectedDate: $selectedDate
                         )
+                        .background(Color.bookCover)
+                        .cornerRadius(8)
+                        .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
                         .frame(height: 350)
-                        .padding(.bottom, 16)
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 24)
                     } else {
-                        // Search bar
+                        // Clean search bar
                         HStack {
-                            Image(systemName: "magnifyingglass")
-                                .foregroundColor(.textSecondary)
-                            
                             TextField("Search stories...", text: $searchText)
                                 .textFieldStyle(.plain)
+                                .font(.system(size: 16, weight: .light))
                                 .foregroundColor(.textPrimary)
                             
                             if !searchText.isEmpty {
                                 Button {
-                                    searchText = ""
+                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                        searchText = ""
+                                    }
                                 } label: {
-                                    Image(systemName: "xmark.circle.fill")
+                                    Image(systemName: "xmark")
+                                        .font(.system(size: 12, weight: .light))
                                         .foregroundColor(.textSecondary)
                                 }
                             }
                         }
-                        .padding()
-                        .background(Color.darkBackground.opacity(0.8))
-                        .cornerRadius(10)
-                        .padding(.horizontal)
-                        .padding(.bottom, 16)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(Color.bookCover)
+                        .cornerRadius(8)
+                        .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 24)
                     }
                     
-                    // Story list
+                    // Story list - Book cards style
                     if filteredStories.isEmpty {
-                        VStack(spacing: 16) {
+                        VStack(spacing: 20) {
                             Image(systemName: getEmptyStateIcon())
                                 .font(.system(size: 40, weight: .thin))
                                 .foregroundColor(.textSecondary)
                             
-                            Text(getEmptyStateTitle())
-                                .font(.system(size: 16, weight: .light))
-                                .foregroundColor(.textSecondary)
+                            VStack(spacing: 8) {
+                                Text(getEmptyStateTitle())
+                                    .font(.system(size: 18, weight: .light, design: .serif))
+                                    .foregroundColor(.textPrimary)
+                                
+                                Text(getEmptyStateSubtitle())
+                                    .font(.system(size: 14, weight: .light))
+                                    .foregroundColor(.textSecondary)
+                            }
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .padding(.vertical, 40)
+                        .padding(.vertical, 60)
                     } else {
                         ScrollView {
-                            LazyVStack(spacing: 0) {
+                            LazyVStack(spacing: 20) {
                                 ForEach(sortedGroupKeys, id: \.self) { monthYear in
-                                    Section {
-                                        ForEach(groupedStories[monthYear] ?? []) { story in
-                                            if let index = viewModel.stories.firstIndex(where: { $0.id == story.id }) {
-                                                StoryRowView(story: story)
-                                                    .contentShape(Rectangle())
-                                                    .onTapGesture {
-                                                        onStorySelected(index)
-                                                    }
-                                                    .padding(.horizontal)
-                                                    .padding(.vertical, 8)
-                                            }
-                                        }
-                                    } header: {
+                                    VStack(alignment: .leading, spacing: 16) {
+                                        // Month header
                                         Text(monthYear)
-                                            .font(.system(size: 13, weight: .semibold))
+                                            .font(.system(size: 12, weight: .medium))
                                             .foregroundColor(.textSecondary)
                                             .textCase(.uppercase)
                                             .tracking(1)
                                             .frame(maxWidth: .infinity, alignment: .leading)
-                                            .padding(.horizontal)
-                                            .padding(.top, 16)
-                                            .padding(.bottom, 8)
-                                            .background(Color.darkBackground)
+                                            .padding(.horizontal, 20)
+                                        
+                                        // Story cards
+                                        VStack(spacing: 12) {
+                                            ForEach(groupedStories[monthYear] ?? []) { story in
+                                                if let index = viewModel.stories.firstIndex(where: { $0.id == story.id }) {
+                                                    StoryCardView(story: story)
+                                                        .contentShape(Rectangle())
+                                                        .onTapGesture {
+                                                            onStorySelected(index)
+                                                        }
+                                                        .transition(.scale.combined(with: .opacity))
+                                                }
+                                            }
+                                        }
+                                        .padding(.horizontal, 20)
                                     }
                                 }
                             }
+                            .padding(.bottom, 40)
                         }
                     }
                 }
-                .frame(maxHeight: 600)
+                .frame(maxHeight: 700)
                 .background(Color.darkBackground)
                 .cornerRadius(20, corners: [.topLeft, .topRight])
                 .scaleEffect(isAppearing ? 1.0 : 0.9)
@@ -225,6 +238,80 @@ struct LibraryOverlay: View {
         } else {
             return "No stories yet"
         }
+    }
+    
+    private func getEmptyStateSubtitle() -> String {
+        if showingCalendar && selectedDate != nil {
+            return "Try selecting a different date"
+        } else if !searchText.isEmpty {
+            return "Try a different search term"
+        } else {
+            return "Start writing your first story"
+        }
+    }
+}
+
+// Book card-style story view
+struct StoryCardView: View {
+    let story: Story
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            // Story thumbnail/cover
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.bookCover)
+                    .frame(width: 60, height: 80)
+                    .shadow(color: .black.opacity(0.2), radius: 3, x: 0, y: 2)
+                
+                if let firstImageData = story.imageData.first,
+                   let uiImage = UIImage(data: firstImageData) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 60, height: 80)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                } else {
+                    // Book icon
+                    Image(systemName: "book.pages")
+                        .font(.system(size: 20, weight: .light))
+                        .foregroundColor(.textSecondary)
+                }
+            }
+            
+            // Story details
+            VStack(alignment: .leading, spacing: 6) {
+                Text(story.title)
+                    .font(.system(size: 16, weight: .light, design: .serif))
+                    .foregroundColor(.textPrimary)
+                    .lineLimit(2)
+                
+                Text(story.text)
+                    .font(.system(size: 14, weight: .light))
+                    .foregroundColor(.textSecondary)
+                    .lineLimit(2)
+                
+                Spacer(minLength: 4)
+                
+                Text(story.date, style: .date)
+                    .font(.system(size: 11, weight: .light))
+                    .foregroundColor(.textSecondary)
+                    .textCase(.uppercase)
+                    .tracking(0.5)
+            }
+            
+            Spacer()
+            
+            // Subtle indicator
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .light))
+                .foregroundColor(.textSecondary.opacity(0.5))
+        }
+        .padding(.vertical, 12)
+        .padding(.horizontal, 16)
+        .background(Color.bookCover)
+        .cornerRadius(12)
+        .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
     }
 }
 
