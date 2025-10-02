@@ -23,6 +23,7 @@ struct LibraryOverlay: View {
     @State private var searchText = ""
     @State private var showingCalendar = false
     @State private var selectedDate: Date?
+    @State private var isAppearing = false
     
     var filteredStories: [Story] {
         var stories = viewModel.stories
@@ -64,10 +65,12 @@ struct LibraryOverlay: View {
     var body: some View {
         ZStack {
             // Dark overlay background
-            Color.black.opacity(0.5)
+            Color.black.opacity(isAppearing ? 0.5 : 0.0)
                 .ignoresSafeArea()
                 .onTapGesture {
-                    isPresented = false
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        isPresented = false
+                    }
                 }
             
             // Library content
@@ -132,7 +135,7 @@ struct LibraryOverlay: View {
                             }
                         }
                         .padding()
-                        .background(Color.bookCover)
+                        .background(Color.darkBackground.opacity(0.8))
                         .cornerRadius(10)
                         .padding(.horizontal)
                         .padding(.bottom, 16)
@@ -187,6 +190,19 @@ struct LibraryOverlay: View {
                 .frame(maxHeight: 600)
                 .background(Color.darkBackground)
                 .cornerRadius(20, corners: [.topLeft, .topRight])
+                .scaleEffect(isAppearing ? 1.0 : 0.9)
+                .opacity(isAppearing ? 1.0 : 0.0)
+                .offset(y: isAppearing ? 0 : 100)
+            }
+        }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 0.3)) {
+                isAppearing = true
+            }
+        }
+        .onDisappear {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isAppearing = false
             }
         }
     }

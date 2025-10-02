@@ -11,8 +11,6 @@ import UIKit
 struct StorybookView: View {
     @ObservedObject var viewModel: StorybookViewModel
     @State private var currentIndex = -1 // Start at -1 to show cover
-    @State private var showBookAnimation = false
-    @State private var hasShownInitialAnimation = false
     @State private var showLibrary = false
     @State private var showAddStory = false
     
@@ -25,46 +23,48 @@ struct StorybookView: View {
             // Main book view
             VStack(spacing: 16) {
                 // Header with controls
-                HStack {
-                    Spacer()
+                VStack(spacing: 8) {
+                    // Date
+                    Button {
+                        showLibrary = true
+                    } label: {
+                        Text(Date(), style: .date)
+                            .font(.system(size: 13, weight: .light))
+                            .foregroundColor(.textSecondary)
+                            .textCase(.uppercase)
+                            .tracking(1)
+                    }
                     
-                    VStack(spacing: 4) {
-                        Button {
-                            showLibrary = true
-                        } label: {
-                            Text(Date(), style: .date)
-                                .font(.system(size: 13, weight: .light))
-                                .foregroundColor(.textSecondary)
-                                .textCase(.uppercase)
-                                .tracking(1)
-                        }
+                    // Title and controls on same line
+                    HStack(alignment: .center) {
+                        Spacer()
                         
                         Text("My Storybook")
                             .font(.system(size: 20, weight: .light, design: .serif))
                             .foregroundColor(.textPrimary)
-                    }
-                    
-                    Spacer()
-                    
-                    // Top right controls
-                    HStack(spacing: 16) {
-                        Button {
-                            showLibrary = true
-                        } label: {
-                            Image(systemName: "magnifyingglass")
-                                .font(.system(size: 18))
-                                .foregroundColor(.textSecondary)
-                        }
                         
-                        Button {
-                            showAddStory = true
-                        } label: {
-                            Image(systemName: "plus")
-                                .font(.system(size: 18, weight: .medium))
-                                .foregroundColor(.accentGold)
+                        Spacer()
+                        
+                        // Top right controls
+                        HStack(spacing: 16) {
+                            Button {
+                                showLibrary = true
+                            } label: {
+                                Image(systemName: "magnifyingglass")
+                                    .font(.system(size: 18))
+                                    .foregroundColor(.textSecondary)
+                            }
+                            
+                            Button {
+                                showAddStory = true
+                            } label: {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 18, weight: .medium))
+                                    .foregroundColor(.accentGold)
+                            }
                         }
+                        .padding(.trailing, 20)
                     }
-                    .padding(.trailing, 20)
                 }
                 .padding(.top, 20)
                 
@@ -104,22 +104,7 @@ struct StorybookView: View {
                         stories: viewModel.stories,
                         currentIndex: $currentIndex
                     )
-                    .opacity(showBookAnimation ? 0 : 1)
                 }
-            }
-            .opacity(showBookAnimation ? 0 : 1)
-            
-            // Book opening animation overlay (only on app launch)
-            if showBookAnimation {
-                BookOpeningAnimation(
-                    story: viewModel.stories.first
-                ) {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        showBookAnimation = false
-                    }
-                }
-                .transition(.opacity)
-                .zIndex(1)
             }
             
             // Library overlay
@@ -139,13 +124,6 @@ struct StorybookView: View {
         }
         .sheet(isPresented: $showAddStory) {
             AddEditStoryView(viewModel: viewModel)
-        }
-        .onAppear {
-            // Show book animation ONLY on first app launch
-            if !viewModel.stories.isEmpty && !hasShownInitialAnimation {
-                hasShownInitialAnimation = true
-                showBookAnimation = true
-            }
         }
     }
 }
@@ -213,7 +191,18 @@ struct PageCurlWithCoverViewController: UIViewControllerRepresentable {
                 targetVC = StoryHostingController(story: currentStories[index], index: index)
             }
             
-            let direction: UIPageViewController.NavigationDirection = index > lastKnownIndex ? .forward : .reverse
+            // Improve direction calculation to prevent awkward animations
+            let direction: UIPageViewController.NavigationDirection
+            if lastKnownIndex == -1 {
+                // Always go forward from cover
+                direction = .forward
+            } else if index == -1 {
+                // Always go backward to cover
+                direction = .reverse
+            } else {
+                // Normal forward/reverse based on index
+                direction = index > lastKnownIndex ? .forward : .reverse
+            }
             pageVC.setViewControllers([targetVC], direction: direction, animated: true)
             lastKnownIndex = index
         }
@@ -231,7 +220,10 @@ struct PageCurlWithCoverViewController: UIViewControllerRepresentable {
                 return nil
             }
             
-            if currentIndex == 0 {
+            // Only allow going back to cover from the first story (index 0)
+            // For all other stories, go to the previous story
+            // Never go back from the cover (-1) as it's the starting point
+            if currentIndex == 0 && !currentStories.isEmpty {
                 return BookCoverHostingController()
             } else if currentIndex > 0 {
                 return StoryHostingController(
@@ -256,6 +248,8 @@ struct PageCurlWithCoverViewController: UIViewControllerRepresentable {
                 return nil
             }
             
+            // From cover (-1), go to first story if stories exist
+            // From any story, go to next story if it exists
             if currentIndex == -1 && !currentStories.isEmpty {
                 return StoryHostingController(
                     story: currentStories[0],
@@ -268,6 +262,7 @@ struct PageCurlWithCoverViewController: UIViewControllerRepresentable {
                 )
             }
             
+            // No more pages after this one
             return nil
         }
         
