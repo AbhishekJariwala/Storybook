@@ -8,10 +8,30 @@
 import SwiftUI
 import UIKit
 
+// Custom book opening animations
+extension AnyTransition {
+    static var bookOpeningAnimation: AnyTransition {
+        .asymmetric(
+            insertion: AnyTransition.scale(scale: 0.8)
+                .combined(with: AnyTransition.opacity)
+                .combined(with: AnyTransition.move(edge: .trailing)),
+            removal: AnyTransition.opacity
+        )
+    }
+    
+    static var bookClosingAnimation: AnyTransition {
+        .asymmetric(
+            insertion: AnyTransition.opacity,
+            removal: AnyTransition.scale(scale: 0.8)
+                .combined(with: AnyTransition.opacity)
+                .combined(with: AnyTransition.move(edge: .trailing))
+        )
+    }
+}
+
 struct StorybookView: View {
     @ObservedObject var viewModel: StorybookViewModel
     @State private var currentIndex = -1 // Start at -1 to show cover
-    @State private var showAddStory = false
     
     // Library interface state
     @State private var libraryMode: LibraryMode = .hidden
@@ -31,7 +51,7 @@ struct StorybookView: View {
             Color.darkBackground
                 .ignoresSafeArea()
             
-            // Main layout with slide-down animation
+            // Main layout with slideDOWN animation for library only
             ZStack(alignment: .top) {
                 // Book slides down from top to bottom
                 bottomBookArea
@@ -44,10 +64,8 @@ struct StorybookView: View {
                 }
             }
         }
-        .sheet(isPresented: $showAddStory) {
-            AddEditStoryView(viewModel: viewModel)
-        }
     }
+    
     
     // MARK: - Top Interface Area
     private var topInterfaceArea: some View {
@@ -261,6 +279,8 @@ struct StorybookView: View {
         .buttonStyle(.plain)
     }
     
+    
+    
     // MARK: - Bottom Book Area
     private var bottomBookArea: some View {
         GeometryReader { geometry in
@@ -299,7 +319,10 @@ struct StorybookView: View {
                         }
                         
                         Button {
-                            showAddStory = true
+                            // Navigate to blank writing page (always at stories.count)
+                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                                currentIndex = viewModel.stories.count
+                            }
                         } label: {
                             Image(systemName: "plus")
                                 .font(.system(size: 18, weight: .medium))
@@ -312,13 +335,18 @@ struct StorybookView: View {
                 .padding(.top, libraryMode == .hidden ? 20 : 10)
                 .padding(.bottom, libraryMode == .hidden ? 32 : 16)
                 
-                if !viewModel.stories.isEmpty && currentIndex >= 0 {
+                if currentIndex == -1 {
+                    Text("Table of Contents")
+                        .font(.system(size: 11, weight: .light))
+                        .foregroundColor(.textSecondary)
+                        .tracking(1)
+                } else if !viewModel.stories.isEmpty && currentIndex >= 0 && currentIndex < viewModel.stories.count {
                     Text("Story \(currentIndex + 1) of \(viewModel.stories.count)")
                         .font(.system(size: 11, weight: .light))
                         .foregroundColor(.textSecondary)
                         .tracking(1)
-                } else if currentIndex == -1 {
-                    Text("Table of Contents")
+                } else if currentIndex == viewModel.stories.count {
+                    Text("New Story")
                         .font(.system(size: 11, weight: .light))
                         .foregroundColor(.textSecondary)
                         .tracking(1)
@@ -359,7 +387,8 @@ struct StorybookView: View {
                 } else {
                     PageCurlWithCoverViewController(
                         stories: viewModel.stories,
-                        currentIndex: $currentIndex
+                        currentIndex: $currentIndex,
+                        viewModel: viewModel
                     )
             }
         }
@@ -381,12 +410,14 @@ struct StorybookView: View {
             libraryMode = .hidden
         }
     }
+    
 }
 
 // UIPageViewController that includes cover as page 0
 struct PageCurlWithCoverViewController: UIViewControllerRepresentable {
     let stories: [Story]
     @Binding var currentIndex: Int
+    let viewModel: StorybookViewModel
     
     func makeUIViewController(context: Context) -> UIPageViewController {
         let pageVC = UIPageViewController(
@@ -411,8 +442,9 @@ struct PageCurlWithCoverViewController: UIViewControllerRepresentable {
     func updateUIViewController(_ pageVC: UIPageViewController, context: Context) {
         context.coordinator.updateStories(stories)
         
-        // Handle programmatic page changes (from library selection)
-        if context.coordinator.parent.currentIndex != context.coordinator.lastKnownIndex {
+        // Handle programmatic page changes (from library selection only)
+        // Don't navigate if the change came from user swiping
+        if !context.coordinator.isUserGesture && context.coordinator.parent.currentIndex != context.coordinator.lastKnownIndex {
             context.coordinator.navigateToIndex(context.coordinator.parent.currentIndex, pageVC: pageVC)
         }
     }
@@ -424,11 +456,14 @@ struct PageCurlWithCoverViewController: UIViewControllerRepresentable {
     class Coordinator: NSObject, UIPageViewControllerDataSource, UIPageViewControllerDelegate {
         let parent: PageCurlWithCoverViewController
         private var currentStories: [Story]
+        private let viewModel: StorybookViewModel
         var lastKnownIndex: Int = -1
+        var isUserGesture: Bool = false
         
         init(_ parent: PageCurlWithCoverViewController) {
             self.parent = parent
             self.currentStories = parent.stories
+            self.viewModel = parent.viewModel
             self.lastKnownIndex = parent.currentIndex
         }
         
@@ -437,11 +472,28 @@ struct PageCurlWithCoverViewController: UIViewControllerRepresentable {
         }
         
         func navigateToIndex(_ index: Int, pageVC: UIPageViewController) {
-            guard index >= -1 && index < currentStories.count else { return }
+            guard index >= -1 && index <= currentStories.count else { return }
+            
+            // Mark this as a programmatic navigation (not user gesture)
+            isUserGesture = false
             
             let targetVC: UIViewController
             if index == -1 {
                 targetVC = BookCoverHostingController()
+            } else if index == currentStories.count {
+                // Blank writing page - always available after last story
+                targetVC = BlankPageHostingController(
+                    index: index,
+                    onSave: { [weak self] newStory in
+                        self?.viewModel.addStory(newStory)
+                        // Navigate back to the newly created story
+                        if let storyIndex = self?.viewModel.stories.firstIndex(where: { $0.id == newStory.id }) {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                self?.parent.currentIndex = storyIndex
+                            }
+                        }
+                    }
+                )
             } else {
                 targetVC = StoryHostingController(story: currentStories[index], index: index)
             }
@@ -471,19 +523,28 @@ struct PageCurlWithCoverViewController: UIViewControllerRepresentable {
                 currentIndex = -1
             } else if let storyVC = viewController as? StoryHostingController {
                 currentIndex = storyVC.index
+            } else if let blankVC = viewController as? BlankPageHostingController {
+                currentIndex = blankVC.index
             } else {
                 return nil
             }
             
             // Only allow going back to cover from the first story (index 0)
             // For all other stories, go to the previous story
+            // From blank page, go back to the last story
             // Never go back from the cover (-1) as it's the starting point
             if currentIndex == 0 && !currentStories.isEmpty {
                 return BookCoverHostingController()
-            } else if currentIndex > 0 {
+            } else if currentIndex > 0 && currentIndex < currentStories.count {
                 return StoryHostingController(
                     story: currentStories[currentIndex - 1],
                     index: currentIndex - 1
+                )
+            } else if currentIndex == currentStories.count && !currentStories.isEmpty {
+                // From blank page, go back to last story
+                return StoryHostingController(
+                    story: currentStories[currentStories.count - 1],
+                    index: currentStories.count - 1
                 )
             }
             
@@ -499,12 +560,14 @@ struct PageCurlWithCoverViewController: UIViewControllerRepresentable {
                 currentIndex = -1
             } else if let storyVC = viewController as? StoryHostingController {
                 currentIndex = storyVC.index
+            } else if let blankVC = viewController as? BlankPageHostingController {
+                currentIndex = blankVC.index
             } else {
                 return nil
             }
             
             // From cover (-1), go to first story if stories exist
-            // From any story, go to next story if it exists
+            // From any story, go to next story if it exists, or blank page if it's the last
             if currentIndex == -1 && !currentStories.isEmpty {
                 return StoryHostingController(
                     story: currentStories[0],
@@ -515,9 +578,23 @@ struct PageCurlWithCoverViewController: UIViewControllerRepresentable {
                     story: currentStories[currentIndex + 1],
                     index: currentIndex + 1
                 )
+            } else if currentIndex == currentStories.count - 1 {
+                // From last story, go to blank writing page
+                return BlankPageHostingController(
+                    index: currentIndex + 1,
+                    onSave: { [weak self] newStory in
+                        self?.viewModel.addStory(newStory)
+                        // Navigate back to the newly created story
+                        if let storyIndex = self?.viewModel.stories.firstIndex(where: { $0.id == newStory.id }) {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                self?.parent.currentIndex = storyIndex
+                            }
+                        }
+                    }
+                )
             }
             
-            // No more pages after this one
+            // No more pages after blank page
             return nil
         }
         
@@ -529,6 +606,9 @@ struct PageCurlWithCoverViewController: UIViewControllerRepresentable {
         ) {
             guard completed else { return }
             
+            // Mark this as a user gesture (swipe) to prevent feedback loop
+            isUserGesture = true
+            
             if let visibleVC = pageViewController.viewControllers?.first {
                 if visibleVC is BookCoverHostingController {
                     parent.currentIndex = -1
@@ -536,6 +616,9 @@ struct PageCurlWithCoverViewController: UIViewControllerRepresentable {
                 } else if let storyVC = visibleVC as? StoryHostingController {
                     parent.currentIndex = storyVC.index
                     lastKnownIndex = storyVC.index
+                } else if let blankVC = visibleVC as? BlankPageHostingController {
+                    parent.currentIndex = blankVC.index
+                    lastKnownIndex = blankVC.index
                 }
             }
         }
@@ -584,6 +667,124 @@ class StoryHostingController: UIHostingController<ThemedStoryView> {
     }
 }
 
+// Hosting controller for blank writing page
+class BlankPageHostingController: UIHostingController<BlankWritingPageView> {
+    let index: Int
+    
+    var onSave: ((Story) -> Void)?
+    
+    init(index: Int, onSave: @escaping (Story) -> Void) {
+        self.index = index
+        self.onSave = onSave
+        super.init(rootView: BlankWritingPageView(onSave: onSave))
+        view.backgroundColor = UIColor(Color.darkBackground)
+    }
+    
+    @MainActor required dynamic init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+}
+
+// Blank writing page view - looks like story page but editable
+struct BlankWritingPageView: View {
+    @State var title: String = ""
+    @State var text: String = ""
+    @State var date: Date = Date()
+    let onSave: ((Story) -> Void)?
+    
+    var body: some View {
+        // Exact replica of ThemedStoryView design but editable
+        RoundedRectangle(cornerRadius: 8)
+            .fill(Color.pageWhite)
+            .frame(maxWidth: 350)
+            .shadow(color: .black.opacity(0.3), radius: 15, x: 0, y: 10)
+            .overlay(
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        // Editable Title - same style as story
+                        TextField("Untitled", text: $title)
+                            .font(.system(size: 28, weight: .regular, design: .serif))
+                            .foregroundColor(.black)
+                        
+                        // Editable Date - same style as story
+                        DatePicker("", selection: $date, displayedComponents: [.date])
+                            .font(.system(size: 12, weight: .light))
+                            .foregroundColor(.gray)
+                            .textCase(.uppercase)
+                            .tracking(1)
+                            .labelsHidden()
+                        
+                        Divider()
+                            .background(Color.black.opacity(0.2))
+                            .padding(.vertical, 4)
+                        
+                        // Editable Story text - same style as story
+                        TextEditor(text: $text)
+                            .font(.system(size: 17, design: .serif))
+                            .foregroundColor(.black.opacity(0.85))
+                            .lineSpacing(10)
+                            .frame(minHeight: 300)
+                            .overlay(
+                                Group {
+                                    if text.isEmpty {
+                                        VStack {
+                                            HStack {
+                                                Text("Begin writing your story...")
+                                                    .font(.system(size: 17, design: .serif))
+                                                    .foregroundColor(.gray.opacity(0.7))
+                                                Spacer()
+                                            }
+                                            Spacer()
+                                        }
+                                    }
+                                },
+                                alignment: .topLeading
+                            )
+                        
+                        Spacer(minLength: 40)
+                        
+                        // Save button
+                        HStack {
+                            Spacer()
+                            Button {
+                                guard !title.isEmpty else { return }
+                                
+                                let newStory = Story(
+                                    title: title,
+                                    text: text,
+                                    date: date,
+                                    imageData: []
+                                )
+                                
+                                onSave?(newStory)
+                                
+                                // Clear the form after saving
+                                title = ""
+                                text = ""
+                                date = Date()
+                            } label: {
+                                Text("Save Story")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 24)
+                                    .padding(.vertical, 12)
+                            .background(Color.accentGold)
+                            .cornerRadius(8)
+                            }
+                            .disabled(title.isEmpty)
+                            Spacer()
+                        }
+                        .padding(.vertical, 20)
+                    }
+                    .padding(32)
+                }
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .padding(.horizontal, 20)
+    }
+}
+
 #Preview {
     StorybookView(viewModel: StorybookViewModel())
 }
+
